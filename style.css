@@ -1,0 +1,236 @@
+:root {
+  color-scheme: light;
+  --bg: #0b1020;
+  --text: #e8eefc;
+  --muted: #b7c3e6;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #86a8ff;
+  --danger-border: rgba(255, 120, 120, 0.35);
+  --danger-bg: rgba(255, 80, 80, 0.08);
+  --danger-text: #ffd6d6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(1200px 600px at 20% 10%, rgba(134, 168, 255, 0.22), transparent 60%),
+    radial-gradient(900px 500px at 80% 20%, rgba(134, 168, 255, 0.12), transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+
+.container {
+  width: min(980px, calc(100% - 32px));
+  margin: 32px auto 40px;
+}
+
+.header {
+  margin-bottom: 16px;
+}
+
+.title {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: 0.2px;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin: 14px 0;
+}
+
+.cardsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.cardsGrid > .card {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.right {
+  padding-top: 2px;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.value {
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 6px;
+}
+
+.valueEditable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.valueEditable:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 6px;
+}
+
+.valueEditable:focus {
+  outline: none;
+}
+
+.currentWeightInline {
+  font: inherit;
+  width: 100%;
+  max-width: 240px;
+}
+
+.meta {
+  color: var(--muted);
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.inputGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  outline: none;
+}
+
+.input:focus {
+  border-color: rgba(134, 168, 255, 0.55);
+}
+
+.compareHigher {
+  color: var(--accent);
+}
+
+.compareLower {
+  color: var(--danger-text);
+}
+
+
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.chartWrap {
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.chart {
+  width: 100%;
+  height: 240px;
+  display: block;
+}
+
+.grid line {
+  stroke: rgba(255, 255, 255, 0.06);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.grid text {
+  fill: var(--muted);
+  font-size: 12px;
+  opacity: 0.9;
+  user-select: none;
+}
+
+.grid .axisTitle {
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.grid .axisLine {
+  stroke: var(--muted);
+  stroke-opacity: 0.35;
+}
+
+.grid .axisTick {
+  stroke: var(--muted);
+  stroke-opacity: 0.35;
+}
+
+.line {
+  fill: none;
+  stroke: rgba(134, 168, 255, 0.95);
+  stroke-width: 2.4;
+}
+
+.area {
+  fill: url(#areaFill);
+  stroke: none;
+}
+
+.error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .cardsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .inputs {
+    grid-template-columns: 1fr;
+  }
+  .row {
+    flex-direction: column;
+  }
+  .chartHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .value {
+    font-size: 32px;
+  }
+}
