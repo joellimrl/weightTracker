@@ -139,22 +139,48 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseDate(value) {
+function parseTimestamp(value) {
   const s = String(value ?? '').trim();
   if (!s) {
     return null;
   }
 
-  const iso = /^\d{4}-\d{2}-\d{2}/.exec(s);
-  if (iso) {
-    return iso[0];
+  const pad2 = (n) => String(n).padStart(2, '0');
+
+  // Prefer explicit Y-M-D (optionally with time) and interpret as LOCAL time.
+  // Supports:
+  // - 2026-02-16
+  // - 2026-02-16 07:30
+  // - 2026-02-16T07:30
+  // - 2026-02-16 07:30:00
+  const ymdTime = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
+  if (ymdTime) {
+    const yyyy = Number(ymdTime[1]);
+    const mm = Number(ymdTime[2]);
+    const dd = Number(ymdTime[3]);
+    const hh = ymdTime[4] != null ? Number(ymdTime[4]) : 0;
+    const min = ymdTime[5] != null ? Number(ymdTime[5]) : 0;
+    const sec = ymdTime[6] != null ? Number(ymdTime[6]) : 0;
+    const hasTime = ymdTime[4] != null;
+
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh >= 0 && hh <= 23 && min >= 0 && min <= 59) {
+      const d = new Date(yyyy, mm - 1, dd, hh, min, sec, 0);
+      const isoDate = `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
+      const isoText = hasTime ? `${isoDate} ${pad2(hh)}:${pad2(min)}` : isoDate;
+      return { ms: d.getTime(), isoDate, isoText, hasTime };
+    }
   }
 
-  const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
-  if (mdy) {
-    const a = Number(mdy[1]);
-    const b = Number(mdy[2]);
-    const yyyy = Number(mdy[3]);
+  // M/D/YYYY (optionally with time) — interpret as LOCAL time.
+  const mdyTime = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(s);
+  if (mdyTime) {
+    const a = Number(mdyTime[1]);
+    const b = Number(mdyTime[2]);
+    const yyyy = Number(mdyTime[3]);
+    const hh = mdyTime[4] != null ? Number(mdyTime[4]) : 0;
+    const min = mdyTime[5] != null ? Number(mdyTime[5]) : 0;
+    const sec = mdyTime[6] != null ? Number(mdyTime[6]) : 0;
+    const hasTime = mdyTime[4] != null;
 
     // Heuristic for dd/mm vs mm/dd:
     // - If the first number can't be a month (13-31), treat as dd/mm.
@@ -170,30 +196,29 @@ function parseDate(value) {
       dd = b;
     }
 
-    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
-      return `${yyyy.toString().padStart(4, '0')}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh >= 0 && hh <= 23 && min >= 0 && min <= 59) {
+      const d = new Date(yyyy, mm - 1, dd, hh, min, sec, 0);
+      const isoDate = `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
+      const isoText = hasTime ? `${isoDate} ${pad2(hh)}:${pad2(min)}` : isoDate;
+      return { ms: d.getTime(), isoDate, isoText, hasTime };
     }
   }
 
-  const ymd = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(s);
-  if (ymd) {
-    const yyyy = Number(ymd[1]);
-    const mm = Number(ymd[2]);
-    const dd = Number(ymd[3]);
-    return `${String(yyyy).padStart(4, '0')}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-  }
-
+  // Fallback to Date.parse for other formats.
   const t = Date.parse(s);
   if (!Number.isFinite(t)) {
     return null;
   }
   const d = new Date(t);
-  // For date-ish strings without an explicit timezone, using UTC getters can
-  // shift the day (e.g. showing 14th instead of 15th). Use local getters.
   const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  const mm = d.getMonth() + 1;
+  const dd = d.getDate();
+  const hh = d.getHours();
+  const min = d.getMinutes();
+  const hasTime = hh !== 0 || min !== 0;
+  const isoDate = `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
+  const isoText = hasTime ? `${isoDate} ${pad2(hh)}:${pad2(min)}` : isoDate;
+  return { ms: d.getTime(), isoDate, isoText, hasTime };
 }
 
 function extractPointsFromCsv(csvText) {
@@ -222,20 +247,20 @@ function extractPointsFromCsv(csvText) {
   const points = [];
   for (let i = startRow; i < rows.length; i++) {
     const r = rows[i];
-    const date = parseDate(r[dateIdx]);
+    const ts = parseTimestamp(r[dateIdx]);
     const weight = toNumber(r[weightIdx]);
-    if (!date || weight === null) {
+    if (!ts || weight === null) {
       continue;
     }
-    points.push({ date, weight });
+    points.push({ t: ts.ms, date: ts.isoText, isoDate: ts.isoDate, hasTime: ts.hasTime, weight });
   }
 
-  points.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  points.sort((a, b) => a.t - b.t);
 
   const deduped = [];
   for (const p of points) {
     const last = deduped[deduped.length - 1];
-    if (last && last.date === p.date) {
+    if (last && last.t === p.t) {
       deduped[deduped.length - 1] = p;
     } else {
       deduped.push(p);
@@ -245,7 +270,31 @@ function extractPointsFromCsv(csvText) {
   return deduped;
 }
 
+function formatXAxisTimestamp(point, includeTime) {
+  if (!point) {
+    return '';
+  }
+  const d = new Date(point.t);
+  const opts = includeTime
+    ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }
+    : { month: 'short', day: '2-digit' };
+  return new Intl.DateTimeFormat(undefined, opts).format(d);
+}
+
 async function loadData() {
+  const maybeWindow = typeof window !== 'undefined' ? window : null;
+  if (maybeWindow) {
+    const testPoints = maybeWindow.WT_TEST_POINTS;
+    if (Array.isArray(testPoints) && testPoints.length) {
+      return testPoints;
+    }
+
+    const testCsvText = maybeWindow.WT_TEST_CSV_TEXT;
+    if (typeof testCsvText === 'string' && testCsvText.trim()) {
+      return extractPointsFromCsv(testCsvText);
+    }
+  }
+
   const res = await fetch(CSV_URL, { cache: 'no-store' });
   if (!res.ok) {
     throw new Error(`CSV fetch failed: ${res.status}`);
@@ -432,6 +481,7 @@ function setGridLines(svgGrid, opts = {}) {
   const maxY = opts.maxY;
   const unit = opts.unit ?? 'kg';
   const axisTitle = opts.axisTitle ?? unit;
+  const xTicks = Array.isArray(opts.xTicks) ? opts.xTicks : null;
 
   while (svgGrid.firstChild) {
     svgGrid.removeChild(svgGrid.firstChild);
@@ -504,9 +554,37 @@ function setGridLines(svgGrid, opts = {}) {
       svgGrid.appendChild(label);
     }
   }
+
+  // X axis + tick labels (timestamps).
+  if (xTicks && xTicks.length) {
+    const axisY = plotBottom;
+
+    // Axis line
+    svgGrid.appendChild(makeLine(plotLeft, axisY, plotRight, axisY, 'axisLine'));
+
+    for (const t of xTicks) {
+      const x = Number(t.x);
+      if (!Number.isFinite(x)) {
+        continue;
+      }
+
+      // Tick mark
+      svgGrid.appendChild(makeLine(x, axisY, x, axisY + 4, 'axisTick'));
+
+      // Label
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', String(x));
+      label.setAttribute('y', String(axisY + 8));
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('dominant-baseline', 'hanging');
+      label.setAttribute('class', 'axisLabel');
+      label.textContent = String(t.text ?? '');
+      svgGrid.appendChild(label);
+    }
+  }
 }
 
-function buildPath(points, w = 1000, h = 320, inset = { left: 72, right: 18, top: 18, bottom: 18 }) {
+function buildPath(points, w = 1000, h = 320, inset = { left: 72, right: 18, top: 18, bottom: 44 }) {
   const ys = points.map((p) => p.weight);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
@@ -514,25 +592,37 @@ function buildPath(points, w = 1000, h = 320, inset = { left: 72, right: 18, top
   const spanX = Math.max(1, points.length - 1);
   const spanY = Math.max(0.0001, maxY - minY);
 
+  const firstT = points[0]?.t;
+  const lastT = points[points.length - 1]?.t;
+  const spanT = Number.isFinite(firstT) && Number.isFinite(lastT) ? lastT - firstT : 0;
+
   const plotW = Math.max(1, w - inset.left - inset.right);
   const plotH = Math.max(1, h - inset.top - inset.bottom);
 
-  const xFor = (i) => inset.left + (plotW * i) / spanX;
+  const xForIndex = (i) => inset.left + (plotW * i) / spanX;
+  const xForPoint = (p, i) => {
+    if (Number.isFinite(spanT) && spanT > 0 && Number.isFinite(p?.t) && Number.isFinite(firstT)) {
+      const tNorm = (p.t - firstT) / spanT;
+      const clamped = Math.max(0, Math.min(1, tNorm));
+      return inset.left + plotW * clamped;
+    }
+    return xForIndex(i);
+  };
   const yFor = (weight) => inset.top + plotH * (1 - (weight - minY) / spanY);
 
   let d = '';
   for (let i = 0; i < points.length; i++) {
-    const x = xFor(i);
+    const x = xForPoint(points[i], i);
     const y = yFor(points[i].weight);
     d += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
   }
 
-  const firstX = xFor(0);
-  const lastX = xFor(points.length - 1);
+  const firstX = xForPoint(points[0], 0);
+  const lastX = xForPoint(points[points.length - 1], points.length - 1);
   const bottomY = h - inset.bottom;
   const areaD = `${d} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
 
-  return { lineD: d, areaD, minY, maxY, inset };
+  return { lineD: d, areaD, minY, maxY, inset, firstT, lastT };
 }
 
 function render(points) {
@@ -546,10 +636,53 @@ function render(points) {
   }
   $('currentMeta').textContent = metaParts.length ? metaParts.join(' • ') : '';
 
-  const { lineD, areaD, minY, maxY, inset } = buildPath(points);
+  const { lineD, areaD, minY, maxY, inset, firstT, lastT } = buildPath(points);
   $('line').setAttribute('d', lineD);
   $('area').setAttribute('d', areaD);
-  setGridLines($('grid'), { w: 1000, h: 320, vertical: 6, horizontal: 4, inset, minY, maxY, unit: 'kg', axisTitle: '' });
+
+  const svg = $('chart');
+  const svgRect = svg?.getBoundingClientRect?.();
+  const svgPxW = svgRect?.width && svgRect.width > 0 ? svgRect.width : 1000;
+  const plotWUnits = Math.max(1, 1000 - inset.left - inset.right);
+  const plotPxW = plotWUnits * (svgPxW / 1000);
+
+  const includeTime = points.some((p) => p.hasTime);
+  const n = points.length;
+  const desiredLabels = Math.max(2, Math.min(n, Math.floor(plotPxW / 90)));
+  const lastIdx = n - 1;
+  const step = n > desiredLabels ? Math.ceil(lastIdx / Math.max(1, desiredLabels - 1)) : 1;
+
+  const tickIdx = new Set([0, lastIdx]);
+  for (let i = step; i < lastIdx; i += step) {
+    tickIdx.add(i);
+  }
+
+  const spanT = Number.isFinite(firstT) && Number.isFinite(lastT) ? lastT - firstT : 0;
+  const xForIndex = (i) => {
+    const p = points[i];
+    if (Number.isFinite(spanT) && spanT > 0 && Number.isFinite(p?.t) && Number.isFinite(firstT)) {
+      const tNorm = (p.t - firstT) / spanT;
+      const clamped = Math.max(0, Math.min(1, tNorm));
+      return inset.left + plotWUnits * clamped;
+    }
+    return inset.left + (plotWUnits * i) / Math.max(1, lastIdx);
+  };
+  const xTicks = Array.from(tickIdx)
+    .sort((a, b) => a - b)
+    .map((i) => ({ x: xForIndex(i), text: formatXAxisTimestamp(points[i], includeTime) }));
+
+  setGridLines($('grid'), {
+    w: 1000,
+    h: 320,
+    vertical: 6,
+    horizontal: 4,
+    inset,
+    minY,
+    maxY,
+    unit: 'kg',
+    axisTitle: '',
+    xTicks
+  });
 
   const start = points[0]?.date;
   const end = latest?.date;
@@ -564,6 +697,24 @@ function render(points) {
       return;
     }
     render(points);
+
+    // Re-render axis labels on resize so we can skip labels when crowded.
+    const svg = $('chart');
+    if (svg && 'ResizeObserver' in window) {
+      let raf = 0;
+      const ro = new ResizeObserver(() => {
+        if (raf) {
+          cancelAnimationFrame(raf);
+        }
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          render(points);
+        });
+      });
+      ro.observe(svg);
+    } else {
+      window.addEventListener('resize', () => render(points));
+    }
 
     const currentWeightEl = $('currentWeight');
     if (currentWeightEl) {

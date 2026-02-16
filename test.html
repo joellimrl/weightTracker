@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Weight Tracker</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script>
+      // Test dataset (CSV). app.js will use this instead of fetching from Google Sheets.
+      window.WT_TEST_CSV_TEXT = `date,weight_kg
+2026-01-28,90.8
+2026-01-29,90.5
+2026-01-30,90.6
+2026-01-31,90.2
+2026-02-01,90.1
+2026-02-02,89.9
+2026-02-03,89.7
+2026-02-04,89.6
+2026-02-05,89.3
+2026-02-06,89.1
+2026-02-07,89.0
+2026-02-08,88.7
+2026-02-09,88.9
+2026-02-10,88.5
+2026-02-11,88.2
+2026-02-12,88.0
+2026-02-13,87.8
+2026-02-14,87.5
+2026-02-15,87.2
+2026-02-16,86.9
+`;
+    </script>
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1 class="title">Weight Tracker</h1>
+      </header>
+
+      <div class="cardsGrid" aria-label="Summary">
+        <section class="card" aria-label="Current weight">
+          <div class="row">
+            <div>
+              <div class="label">Current weight (kg)</div>
+              <div id="currentWeight" class="value valueEditable" role="button" tabindex="0" aria-label="Current weight (click to edit)">—</div>
+              <div id="currentMeta" class="meta">Loading…</div>
+            </div>
+            <div class="right">
+            </div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Progress">
+          <div>
+            <div class="label">Change from 90.8kg</div>
+            <div id="currentLossPct" class="value">—</div>
+          </div>
+        </section>
+      </div>
+
+      <div class="cardsGrid" aria-label="Your stats">
+        <section class="card" aria-label="Your weights">
+          <div>
+            <div class="label">Your weights</div>
+            <div class="inputs">
+              <label class="inputGroup">
+                <span class="label">Your original (kg)</span>
+                <input id="userOriginal" class="input" inputmode="decimal" placeholder="e.g. 90.8" />
+              </label>
+              <label class="inputGroup">
+                <span class="label">Your current (kg)</span>
+                <input id="userCurrent" class="input" inputmode="decimal" placeholder="e.g. 85.0" />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Your progress">
+          <div>
+            <div class="label">Your change</div>
+            <div id="userLossPct" class="value">—</div>
+            <div id="userCompare" class="meta"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="card" aria-label="Weight over time">
+        <div class="chartHeader">
+          <div class="label">Weight over time (kg)</div>
+          <div id="rangeMeta" class="meta"></div>
+        </div>
+
+        <div class="chartWrap">
+          <svg id="chart" class="chart" viewBox="0 0 1000 320" preserveAspectRatio="none" role="img" aria-label="Weight chart">
+            <defs>
+              <linearGradient id="areaFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="rgba(134,168,255,0.25)" />
+                <stop offset="100%" stop-color="rgba(134,168,255,0.02)" />
+              </linearGradient>
+            </defs>
+            <g id="grid" class="grid"></g>
+            <path id="area" class="area" d="" />
+            <path id="line" class="line" d="" />
+          </svg>
+        </div>
+
+        <div id="error" class="error" hidden></div>
+      </section>
+    </main>
+  </body>
+</html>
