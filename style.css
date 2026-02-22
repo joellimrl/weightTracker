@@ -226,6 +226,33 @@ body {
   stroke: none;
 }
 
+.wtTooltipLine {
+  stroke: var(--muted);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.wtTooltipDot {
+  fill: var(--accent);
+  fill-opacity: 0.95;
+  stroke: var(--bg);
+  stroke-opacity: 0.9;
+  stroke-width: 2;
+}
+
+.wtTooltipRect {
+  fill: var(--bg);
+  fill-opacity: 0.78;
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.wtTooltipText {
+  fill: var(--text);
+  font-size: 12px;
+}
+
 .error {
   margin-top: 12px;
   padding: 10px 12px;

@@ -7,29 +7,62 @@
     <link rel="stylesheet" href="./style.css" />
     <script>
       // Test dataset (CSV). app.js will use this instead of fetching from Google Sheets.
-      window.WT_TEST_CSV_TEXT = `date,weight_kg
-2026-01-28,90.8
-2026-01-29,90.5
-2026-01-30,90.6
-2026-01-31,90.2
-2026-02-01,90.1
-2026-02-02,89.9
-2026-02-03,89.7
-2026-02-04,89.6
-2026-02-05,89.3
-2026-02-06,89.1
-2026-02-07,89.0
-2026-02-08,88.7
-2026-02-09,88.9
-2026-02-10,88.5
-2026-02-11,88.2
-2026-02-12,88.0
-2026-02-13,87.8
-2026-02-14,87.5
-2026-02-15,87.2
-2026-02-16,86.9
-`;
+      // Generates 50 deterministic (seeded) points from Feb 22 → Sep 30, 2026.
+
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const toDmyLocal = (d) => {
+        const yyyy = d.getFullYear();
+        const mm = d.getMonth() + 1;
+        const dd = d.getDate();
+        const hh = d.getHours();
+        const min = d.getMinutes();
+        return `${pad2(dd)}-${pad2(mm)}-${String(yyyy).padStart(4, '0')} ${pad2(hh)}:${pad2(min)}`;
+      };
+
+      // Tiny seeded PRNG (Mulberry32)
+      function mulberry32(seed) {
+        let t = seed >>> 0;
+        return function () {
+          t += 0x6d2b79f5;
+          let x = Math.imul(t ^ (t >>> 15), 1 | t);
+          x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+          return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      const rand = mulberry32(20260222);
+
+      const start = new Date(2026, 1, 22, 0, 0, 0, 0); // Feb 22, 2026
+      const end = new Date(2026, 8, 30, 23, 59, 0, 0); // Sep 30, 2026
+      const spanMs = end.getTime() - start.getTime();
+
+      // Create 50 unique timestamps (ms) so app.js doesn't dedupe them away.
+      const stamps = new Set();
+      while (stamps.size < 50) {
+        const t = start.getTime() + Math.floor(rand() * spanMs);
+        // snap to minute to keep CSV neat
+        const snapped = Math.floor(t / 60000) * 60000;
+        stamps.add(snapped);
+      }
+
+      const ts = Array.from(stamps).sort((a, b) => a - b).map((ms) => new Date(ms));
+
+      // Weight series with a gentle downward trend + noise.
+      const w0 = 90.8;
+      const w1 = 84.8;
+
+      const rows = ['date,weight_kg'];
+      for (let i = 0; i < ts.length; i++) {
+        const tNorm = ts.length > 1 ? i / (ts.length - 1) : 1;
+        const trend = w0 + (w1 - w0) * tNorm;
+        const noise = (rand() - 0.5) * 1.2; // ±0.6kg
+        const weight = Math.round((trend + noise) * 10) / 10;
+        rows.push(`${toDmyLocal(ts[i])},${weight}`);
+      }
+
+      window.WT_TEST_CSV_TEXT = rows.join('\n') + '\n';
     </script>
+    <script src="./chart.js" defer></script>
     <script src="./app.js" defer></script>
   </head>
   <body>

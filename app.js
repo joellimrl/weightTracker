@@ -44,18 +44,23 @@ function showNAState() {
     rangeMetaEl.textContent = '';
   }
 
-  const lineEl = $('line');
-  if (lineEl) {
-    lineEl.setAttribute('d', '');
-  }
-  const areaEl = $('area');
-  if (areaEl) {
-    areaEl.setAttribute('d', '');
-  }
-  const gridEl = $('grid');
-  if (gridEl) {
-    while (gridEl.firstChild) {
-      gridEl.removeChild(gridEl.firstChild);
+  const api = window.WTChart;
+  if (api?.clearChart) {
+    api.clearChart({ svg: $('chart'), grid: $('grid'), line: $('line'), area: $('area') });
+  } else {
+    const lineEl = $('line');
+    if (lineEl) {
+      lineEl.setAttribute('d', '');
+    }
+    const areaEl = $('area');
+    if (areaEl) {
+      areaEl.setAttribute('d', '');
+    }
+    const gridEl = $('grid');
+    if (gridEl) {
+      while (gridEl.firstChild) {
+        gridEl.removeChild(gridEl.firstChild);
+      }
     }
   }
 }
@@ -146,13 +151,11 @@ function parseTimestamp(value) {
   }
 
   const pad2 = (n) => String(n).padStart(2, '0');
+  const pad4 = (n) => String(n).padStart(4, '0');
+  const toDmy = (yyyy, mm, dd) => `${pad2(dd)}-${pad2(mm)}-${pad4(yyyy)}`;
 
-  // Prefer explicit Y-M-D (optionally with time) and interpret as LOCAL time.
-  // Supports:
-  // - 2026-02-16
-  // - 2026-02-16 07:30
-  // - 2026-02-16T07:30
-  // - 2026-02-16 07:30:00
+  // Accept explicit Y-M-D (optionally with time) and interpret as LOCAL time.
+  // Output is normalized to dd-mm-yyyy.
   const ymdTime = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
   if (ymdTime) {
     const yyyy = Number(ymdTime[1]);
@@ -165,9 +168,33 @@ function parseTimestamp(value) {
 
     if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh >= 0 && hh <= 23 && min >= 0 && min <= 59) {
       const d = new Date(yyyy, mm - 1, dd, hh, min, sec, 0);
-      const isoDate = `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
-      const isoText = hasTime ? `${isoDate} ${pad2(hh)}:${pad2(min)}` : isoDate;
-      return { ms: d.getTime(), isoDate, isoText, hasTime };
+      const dmyDate = toDmy(yyyy, mm, dd);
+      const dmyText = hasTime ? `${dmyDate} ${pad2(hh)}:${pad2(min)}` : dmyDate;
+      return { ms: d.getTime(), isoDate: dmyDate, isoText: dmyText, hasTime };
+    }
+  }
+
+  // D-M-YYYY (optionally with time) — interpret as LOCAL time.
+  // Supports:
+  // - 16-02-2026
+  // - 16-02-2026 07:30
+  // - 16-02-2026T07:30
+  // - 16-02-2026 07:30:00
+  const dmyTime = /^(\d{1,2})-(\d{1,2})-(\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(s);
+  if (dmyTime) {
+    const dd = Number(dmyTime[1]);
+    const mm = Number(dmyTime[2]);
+    const yyyy = Number(dmyTime[3]);
+    const hh = dmyTime[4] != null ? Number(dmyTime[4]) : 0;
+    const min = dmyTime[5] != null ? Number(dmyTime[5]) : 0;
+    const sec = dmyTime[6] != null ? Number(dmyTime[6]) : 0;
+    const hasTime = dmyTime[4] != null;
+
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh >= 0 && hh <= 23 && min >= 0 && min <= 59) {
+      const d = new Date(yyyy, mm - 1, dd, hh, min, sec, 0);
+      const dmyDate = toDmy(yyyy, mm, dd);
+      const dmyText = hasTime ? `${dmyDate} ${pad2(hh)}:${pad2(min)}` : dmyDate;
+      return { ms: d.getTime(), isoDate: dmyDate, isoText: dmyText, hasTime };
     }
   }
 
@@ -198,9 +225,9 @@ function parseTimestamp(value) {
 
     if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 && hh >= 0 && hh <= 23 && min >= 0 && min <= 59) {
       const d = new Date(yyyy, mm - 1, dd, hh, min, sec, 0);
-      const isoDate = `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
-      const isoText = hasTime ? `${isoDate} ${pad2(hh)}:${pad2(min)}` : isoDate;
-      return { ms: d.getTime(), isoDate, isoText, hasTime };
+      const dmyDate = toDmy(yyyy, mm, dd);
+      const dmyText = hasTime ? `${dmyDate} ${pad2(hh)}:${pad2(min)}` : dmyDate;
+      return { ms: d.getTime(), isoDate: dmyDate, isoText: dmyText, hasTime };
     }
   }
 
@@ -216,9 +243,9 @@ function parseTimestamp(value) {
   const hh = d.getHours();
   const min = d.getMinutes();
   const hasTime = hh !== 0 || min !== 0;
-  const isoDate = `${String(yyyy).padStart(4, '0')}-${pad2(mm)}-${pad2(dd)}`;
-  const isoText = hasTime ? `${isoDate} ${pad2(hh)}:${pad2(min)}` : isoDate;
-  return { ms: d.getTime(), isoDate, isoText, hasTime };
+  const dmyDate = toDmy(yyyy, mm, dd);
+  const dmyText = hasTime ? `${dmyDate} ${pad2(hh)}:${pad2(min)}` : dmyDate;
+  return { ms: d.getTime(), isoDate: dmyDate, isoText: dmyText, hasTime };
 }
 
 function extractPointsFromCsv(csvText) {
@@ -268,17 +295,6 @@ function extractPointsFromCsv(csvText) {
   }
 
   return deduped;
-}
-
-function formatXAxisTimestamp(point, includeTime) {
-  if (!point) {
-    return '';
-  }
-  const d = new Date(point.t);
-  const opts = includeTime
-    ? { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }
-    : { month: 'short', day: '2-digit' };
-  return new Intl.DateTimeFormat(undefined, opts).format(d);
 }
 
 async function loadData() {
@@ -471,173 +487,20 @@ function updateUserComparison() {
   }
 }
 
-function setGridLines(svgGrid, opts = {}) {
-  const width = opts.w ?? 1000;
-  const height = opts.h ?? 320;
-  const v = opts.vertical ?? 6;
-  const hz = opts.horizontal ?? 4;
-  const inset = opts.inset ?? { left: 18, right: 18, top: 18, bottom: 18 };
-  const minY = opts.minY;
-  const maxY = opts.maxY;
-  const unit = opts.unit ?? 'kg';
-  const axisTitle = opts.axisTitle ?? unit;
-  const xTicks = Array.isArray(opts.xTicks) ? opts.xTicks : null;
-  const referenceY = opts.referenceY;
-
-  while (svgGrid.firstChild) {
-    svgGrid.removeChild(svgGrid.firstChild);
+function renderChart(points) {
+  const api = window.WTChart;
+  if (!api?.renderChart) {
+    return;
   }
-
-  const plotLeft = inset.left;
-  const plotRight = width - inset.right;
-  const plotTop = inset.top;
-  const plotBottom = height - inset.bottom;
-  const plotW = Math.max(1, plotRight - plotLeft);
-  const plotH = Math.max(1, plotBottom - plotTop);
-
-  const makeLine = (x1, y1, x2, y2, cls) => {
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', String(x1));
-    line.setAttribute('y1', String(y1));
-    line.setAttribute('x2', String(x2));
-    line.setAttribute('y2', String(y2));
-    if (cls) {
-      line.setAttribute('class', cls);
-    }
-    return line;
-  };
-
-  // Grid lines (confined to plot area so they align with the padded path).
-  for (let i = 1; i < v; i++) {
-    const x = plotLeft + (plotW * i) / v;
-    svgGrid.appendChild(makeLine(x, plotTop, x, plotBottom));
-  }
-
-  for (let i = 1; i < hz; i++) {
-    const y = plotTop + (plotH * i) / hz;
-    svgGrid.appendChild(makeLine(plotLeft, y, plotRight, y));
-  }
-
-  // Optional reference line (e.g. a starting weight).
-  if (Number.isFinite(referenceY) && Number.isFinite(minY) && Number.isFinite(maxY)) {
-    const span = Math.max(0.0001, maxY - minY);
-    const y = plotTop + plotH * (1 - (referenceY - minY) / span);
-    svgGrid.appendChild(makeLine(plotLeft, y, plotRight, y, 'refLine'));
-  }
-
-  // Y axis + tick labels (kg).
-  svgGrid.appendChild(makeLine(plotLeft, plotTop, plotLeft, plotBottom, 'axisLine'));
-
-  if (axisTitle) {
-    const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    title.setAttribute('x', String(plotLeft - 8));
-    title.setAttribute('y', String(plotTop + 10));
-    title.setAttribute('text-anchor', 'end');
-    title.setAttribute('dominant-baseline', 'hanging');
-    title.setAttribute('class', 'axisTitle');
-    title.textContent = String(axisTitle);
-    svgGrid.appendChild(title);
-  }
-
-  if (Number.isFinite(minY) && Number.isFinite(maxY)) {
-    const span = Math.max(0.0001, maxY - minY);
-    const ticks = hz;
-
-    for (let i = 0; i <= ticks; i++) {
-      const t = i / ticks;
-      const y = plotTop + plotH * t;
-      const value = maxY - span * t;
-
-      // Tick mark
-      svgGrid.appendChild(makeLine(plotLeft - 4, y, plotLeft, y, 'axisTick'));
-
-      // Label
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', String(plotLeft - 8));
-      label.setAttribute('y', String(y));
-      label.setAttribute('text-anchor', 'end');
-      label.setAttribute('dominant-baseline', 'middle');
-      label.setAttribute('class', 'axisLabel');
-      label.textContent = `${formatWeight(value)}`;
-      svgGrid.appendChild(label);
-    }
-  }
-
-  // X axis + tick labels (timestamps).
-  if (xTicks && xTicks.length) {
-    const axisY = plotBottom;
-
-    // Axis line
-    svgGrid.appendChild(makeLine(plotLeft, axisY, plotRight, axisY, 'axisLine'));
-
-    for (const t of xTicks) {
-      const x = Number(t.x);
-      if (!Number.isFinite(x)) {
-        continue;
-      }
-
-      // Tick mark
-      svgGrid.appendChild(makeLine(x, axisY, x, axisY + 4, 'axisTick'));
-
-      // Label
-      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      label.setAttribute('x', String(x));
-      label.setAttribute('y', String(axisY + 8));
-      label.setAttribute('text-anchor', 'middle');
-      label.setAttribute('dominant-baseline', 'hanging');
-      label.setAttribute('class', 'axisLabel');
-      label.textContent = String(t.text ?? '');
-      svgGrid.appendChild(label);
-    }
-  }
-}
-
-function buildPath(
-  points,
-  w = 1000,
-  h = 320,
-  inset = { left: 72, right: 18, top: 18, bottom: 44 },
-  extraYValues = []
-) {
-  const ys = points.map((p) => p.weight);
-  const allYs = ys.concat(Array.isArray(extraYValues) ? extraYValues : []).filter((n) => Number.isFinite(n));
-  const minY = Math.min(...allYs);
-  const maxY = Math.max(...allYs);
-
-  const spanX = Math.max(1, points.length - 1);
-  const spanY = Math.max(0.0001, maxY - minY);
-
-  const firstT = points[0]?.t;
-  const lastT = points[points.length - 1]?.t;
-  const spanT = Number.isFinite(firstT) && Number.isFinite(lastT) ? lastT - firstT : 0;
-
-  const plotW = Math.max(1, w - inset.left - inset.right);
-  const plotH = Math.max(1, h - inset.top - inset.bottom);
-
-  const xForIndex = (i) => inset.left + (plotW * i) / spanX;
-  const xForPoint = (p, i) => {
-    if (Number.isFinite(spanT) && spanT > 0 && Number.isFinite(p?.t) && Number.isFinite(firstT)) {
-      const tNorm = (p.t - firstT) / spanT;
-      const clamped = Math.max(0, Math.min(1, tNorm));
-      return inset.left + plotW * clamped;
-    }
-    return xForIndex(i);
-  };
-  const yFor = (weight) => inset.top + plotH * (1 - (weight - minY) / spanY);
-
-  let d = '';
-  for (let i = 0; i < points.length; i++) {
-    const x = xForPoint(points[i], i);
-    const y = yFor(points[i].weight);
-    d += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
-  }
-
-  const firstX = xForPoint(points[0], 0);
-  const lastX = xForPoint(points[points.length - 1], points.length - 1);
-  const bottomY = h - inset.bottom;
-  const areaD = `${d} L ${lastX} ${bottomY} L ${firstX} ${bottomY} Z`;
-
-  return { lineD: d, areaD, minY, maxY, inset, firstT, lastT };
+  api.renderChart({
+    points,
+    svg: $('chart'),
+    grid: $('grid'),
+    line: $('line'),
+    area: $('area'),
+    referenceY: ORIGINAL_WEIGHT_KG,
+    unit: 'kg'
+  });
 }
 
 function render(points) {
@@ -655,54 +518,7 @@ function render(points) {
   }
   $('currentMeta').textContent = metaParts.length ? metaParts.join(' • ') : '';
 
-  const { lineD, areaD, minY, maxY, inset, firstT, lastT } = buildPath(points, 1000, 320, undefined, [ORIGINAL_WEIGHT_KG]);
-  $('line').setAttribute('d', lineD);
-  $('area').setAttribute('d', areaD);
-
-  const svg = $('chart');
-  const svgRect = svg?.getBoundingClientRect?.();
-  const svgPxW = svgRect?.width && svgRect.width > 0 ? svgRect.width : 1000;
-  const plotWUnits = Math.max(1, 1000 - inset.left - inset.right);
-  const plotPxW = plotWUnits * (svgPxW / 1000);
-
-  const includeTime = points.some((p) => p.hasTime);
-  const n = points.length;
-  const desiredLabels = Math.max(2, Math.min(n, Math.floor(plotPxW / 90)));
-  const lastIdx = n - 1;
-  const step = n > desiredLabels ? Math.ceil(lastIdx / Math.max(1, desiredLabels - 1)) : 1;
-
-  const tickIdx = new Set([0, lastIdx]);
-  for (let i = step; i < lastIdx; i += step) {
-    tickIdx.add(i);
-  }
-
-  const spanT = Number.isFinite(firstT) && Number.isFinite(lastT) ? lastT - firstT : 0;
-  const xForIndex = (i) => {
-    const p = points[i];
-    if (Number.isFinite(spanT) && spanT > 0 && Number.isFinite(p?.t) && Number.isFinite(firstT)) {
-      const tNorm = (p.t - firstT) / spanT;
-      const clamped = Math.max(0, Math.min(1, tNorm));
-      return inset.left + plotWUnits * clamped;
-    }
-    return inset.left + (plotWUnits * i) / Math.max(1, lastIdx);
-  };
-  const xTicks = Array.from(tickIdx)
-    .sort((a, b) => a - b)
-    .map((i) => ({ x: xForIndex(i), text: formatXAxisTimestamp(points[i], includeTime) }));
-
-  setGridLines($('grid'), {
-    w: 1000,
-    h: 320,
-    vertical: 6,
-    horizontal: 4,
-    inset,
-    minY,
-    maxY,
-    unit: 'kg',
-    axisTitle: '',
-    xTicks,
-    referenceY: ORIGINAL_WEIGHT_KG
-  });
+  renderChart(points);
 
   const start = points[0]?.date;
   const end = latest?.date;
@@ -728,12 +544,12 @@ function render(points) {
         }
         raf = requestAnimationFrame(() => {
           raf = 0;
-          render(points);
+          renderChart(points);
         });
       });
       ro.observe(svg);
     } else {
-      window.addEventListener('resize', () => render(points));
+      window.addEventListener('resize', () => renderChart(points));
     }
 
     const currentWeightEl = $('currentWeight');
