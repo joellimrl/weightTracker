@@ -482,6 +482,7 @@ function setGridLines(svgGrid, opts = {}) {
   const unit = opts.unit ?? 'kg';
   const axisTitle = opts.axisTitle ?? unit;
   const xTicks = Array.isArray(opts.xTicks) ? opts.xTicks : null;
+  const referenceY = opts.referenceY;
 
   while (svgGrid.firstChild) {
     svgGrid.removeChild(svgGrid.firstChild);
@@ -515,6 +516,13 @@ function setGridLines(svgGrid, opts = {}) {
   for (let i = 1; i < hz; i++) {
     const y = plotTop + (plotH * i) / hz;
     svgGrid.appendChild(makeLine(plotLeft, y, plotRight, y));
+  }
+
+  // Optional reference line (e.g. a starting weight).
+  if (Number.isFinite(referenceY) && Number.isFinite(minY) && Number.isFinite(maxY)) {
+    const span = Math.max(0.0001, maxY - minY);
+    const y = plotTop + plotH * (1 - (referenceY - minY) / span);
+    svgGrid.appendChild(makeLine(plotLeft, y, plotRight, y, 'refLine'));
   }
 
   // Y axis + tick labels (kg).
@@ -584,10 +592,17 @@ function setGridLines(svgGrid, opts = {}) {
   }
 }
 
-function buildPath(points, w = 1000, h = 320, inset = { left: 72, right: 18, top: 18, bottom: 44 }) {
+function buildPath(
+  points,
+  w = 1000,
+  h = 320,
+  inset = { left: 72, right: 18, top: 18, bottom: 44 },
+  extraYValues = []
+) {
   const ys = points.map((p) => p.weight);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
+  const allYs = ys.concat(Array.isArray(extraYValues) ? extraYValues : []).filter((n) => Number.isFinite(n));
+  const minY = Math.min(...allYs);
+  const maxY = Math.max(...allYs);
 
   const spanX = Math.max(1, points.length - 1);
   const spanY = Math.max(0.0001, maxY - minY);
@@ -626,6 +641,10 @@ function buildPath(points, w = 1000, h = 320, inset = { left: 72, right: 18, top
 }
 
 function render(points) {
+  const ys = points.map((p) => p.weight);
+  const dataMinY = Math.min(...ys);
+  const dataMaxY = Math.max(...ys);
+
   const latest = points[points.length - 1];
   latestPoint = latest ?? null;
   renderCurrentWeightValue();
@@ -636,7 +655,7 @@ function render(points) {
   }
   $('currentMeta').textContent = metaParts.length ? metaParts.join(' • ') : '';
 
-  const { lineD, areaD, minY, maxY, inset, firstT, lastT } = buildPath(points);
+  const { lineD, areaD, minY, maxY, inset, firstT, lastT } = buildPath(points, 1000, 320, undefined, [ORIGINAL_WEIGHT_KG]);
   $('line').setAttribute('d', lineD);
   $('area').setAttribute('d', areaD);
 
@@ -681,12 +700,13 @@ function render(points) {
     maxY,
     unit: 'kg',
     axisTitle: '',
-    xTicks
+    xTicks,
+    referenceY: ORIGINAL_WEIGHT_KG
   });
 
   const start = points[0]?.date;
   const end = latest?.date;
-  $('rangeMeta').textContent = `${start} → ${end} • min ${formatWeight(minY)} • max ${formatWeight(maxY)}`;
+  $('rangeMeta').textContent = `${start} → ${end} • min ${formatWeight(dataMinY)} • max ${formatWeight(dataMaxY)}`;
 }
 
 (async function main() {
