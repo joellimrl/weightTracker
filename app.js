@@ -445,13 +445,75 @@ function startCurrentWeightEdit() {
   }, { once: true });
 }
 
+const USER_ORIGINAL_KEY = 'userOriginal';
+const USER_CURRENT_KEY = 'userCurrent';
+
+/**
+ * Load a string value from localStorage keeping the same
+ * semantics used previously in loadAuth/saveAuth helpers.
+ *
+ * @param {string} key
+ * @returns {string} trimmed stored value or empty string
+ */
+function loadStored(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    console.log('loadStored', key, { raw });
+    // Return null when the key does not exist so callers can distinguish
+    // between "no value stored" and "stored value is empty string".
+    if (raw === null) {
+      return null;
+    }
+    const trimmed = String(raw).trim();
+    return trimmed;
+  } catch {
+    // Log the error so the developer can see why storage failed
+    // (e.g. private mode, blocked storage).
+    console.warn('loadStored error', key);
+    return null;
+  }
+}
+
+/**
+ * Save a string value into localStorage using the same
+ * semantics as saveAuth.  An empty/falsey value removes the key.
+ *
+ * @param {string} key
+ * @param {string} nextVal
+ */
+function saveStored(key, nextVal) {
+  const val = String(nextVal || '');
+  try {
+    // Always persist the key (even if empty). This avoids unintentionally
+    // removing keys during initial loads where inputs may be empty.
+    const toStore = val.trim();
+    console.log('saveStored', key, 'setting', { nextVal, toStore });
+    localStorage.setItem(key, toStore);
+  } catch {
+    // Log storage errors (e.g. private mode / blocked storage)
+    console.warn('saveStored error', key);
+  }
+}
+
 function updateUserComparison() {
   const originalEl = $('userOriginal');
   const currentEl = $('userCurrent');
   const outEl = $('userLossPct');
   const compareEl = $('userCompare');
+  const targetEl = $('userTarget');
   if (!outEl || !compareEl) {
     return;
+  }
+  // persist whatever the user has typed so far
+  try {
+    if (originalEl) {
+      saveStored(USER_ORIGINAL_KEY, originalEl.value);
+    }
+    if (currentEl) {
+      saveStored(USER_CURRENT_KEY, currentEl.value);
+    }
+  } catch (_e) {
+    // ignore storage errors (e.g. private mode)
   }
 
   const original = readInputNumber(originalEl);
@@ -459,31 +521,40 @@ function updateUserComparison() {
 
   clearCompareClasses(outEl, compareEl);
 
+  // compute result only if we have both inputs
   if (!Number.isFinite(original) || !Number.isFinite(current) || original === 0) {
     outEl.textContent = '—';
     compareEl.textContent = '';
-    return;
-  }
-
-  const delta = original - current;
-  const pct = (delta / original) * 100;
-  outEl.textContent = delta >= 0 ? `${formatPct(pct)} loss` : `${formatPct(Math.abs(pct))} gain`;
-
-  if (!Number.isFinite(myLossPct)) {
-    compareEl.textContent = '';
-    return;
-  }
-
-  if (pct > myLossPct) {
-    compareEl.textContent = 'Higher than mine';
-    outEl.classList.add('compareHigher');
-    compareEl.classList.add('compareHigher');
-  } else if (pct < myLossPct) {
-    compareEl.textContent = 'Lower than mine';
-    outEl.classList.add('compareLower');
-    compareEl.classList.add('compareLower');
   } else {
-    compareEl.textContent = 'Same as mine';
+    const delta = original - current;
+    const pct = (delta / original) * 100;
+    outEl.textContent = delta >= 0 ? `${formatPct(pct)} loss` : `${formatPct(Math.abs(pct))} gain`;
+
+    if (Number.isFinite(myLossPct)) {
+      if (pct > myLossPct) {
+        compareEl.textContent = 'Higher than mine';
+        outEl.classList.add('compareHigher');
+        compareEl.classList.add('compareHigher');
+      } else if (pct < myLossPct) {
+        compareEl.textContent = 'Lower than mine';
+        outEl.classList.add('compareLower');
+        compareEl.classList.add('compareLower');
+      } else {
+        compareEl.textContent = 'Same as mine';
+      }
+    } else {
+      compareEl.textContent = '';
+    }
+  }
+
+  // compute target current weight based on the original weight and the app owner's loss percentage
+  if (targetEl) {
+    if (Number.isFinite(original) && Number.isFinite(myLossPct)) {
+      const target = original * (1 - myLossPct / 100);
+      targetEl.textContent = `to match my loss: ${formatWeight(target)} kg`;
+    } else {
+      targetEl.textContent = '';
+    }
   }
 }
 
@@ -532,6 +603,27 @@ function render(points) {
       showNAState();
       return;
     }
+    // restore stored user inputs before rendering so initial render/update
+    // uses the stored values and doesn't overwrite them.
+    const originalEl = $('userOriginal');
+    const currentEl = $('userCurrent');
+    try {
+      if (originalEl) {
+        const saved = loadStored(USER_ORIGINAL_KEY);
+        if (saved !== null) {
+          originalEl.value = saved;
+        }
+      }
+      if (currentEl) {
+        const saved = loadStored(USER_CURRENT_KEY);
+        if (saved !== null) {
+          currentEl.value = saved;
+        }
+      }
+    } catch (_e) {
+      // ignore
+    }
+
     render(points);
 
     // Re-render axis labels on resize so we can skip labels when crowded.
@@ -563,8 +655,7 @@ function render(points) {
       });
     }
 
-    const originalEl = $('userOriginal');
-    const currentEl = $('userCurrent');
+    // original/current elements already restored above (before render)
     if (originalEl) {
       originalEl.addEventListener('input', updateUserComparison);
     }
