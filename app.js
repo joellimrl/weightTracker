@@ -144,6 +144,15 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function roundToDecimals(n, decimals = 2) {
+  if (!Number.isFinite(n)) {
+    return null;
+  }
+  const d = Number.isFinite(decimals) ? Math.max(0, Math.min(6, Math.floor(decimals))) : 2;
+  const factor = 10 ** d;
+  return Math.round(n * factor) / factor;
+}
+
 function parseTimestamp(value) {
   const s = String(value ?? '').trim();
   if (!s) {
@@ -275,7 +284,7 @@ function extractPointsFromCsv(csvText) {
   for (let i = startRow; i < rows.length; i++) {
     const r = rows[i];
     const ts = parseTimestamp(r[dateIdx]);
-    const weight = toNumber(r[weightIdx]);
+    const weight = roundToDecimals(toNumber(r[weightIdx]), 2);
     if (!ts || weight === null) {
       continue;
     }
@@ -321,9 +330,15 @@ async function loadData() {
 }
 
 function formatWeight(w) {
-  const rounded = Math.round(w * 10) / 10;
-  const asInt = Math.round(rounded);
-  return Math.abs(rounded - asInt) < 1e-9 ? String(asInt) : rounded.toFixed(1);
+  if (!Number.isFinite(w)) {
+    return '—';
+  }
+  const decimals = 2;
+  const factor = 10 ** decimals;
+  const rounded = Math.round(w * factor) / factor;
+  // Render with up to 2 decimals (trim trailing zeros).
+  const fixed = rounded.toFixed(decimals);
+  return fixed.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
 }
 
 function formatPct(n) {
@@ -410,7 +425,7 @@ function startCurrentWeightEdit() {
 
   const updateFromInput = () => {
     const n = toNumber(input.value);
-    editedCurrentWeight = Number.isFinite(n) ? n : null;
+    editedCurrentWeight = Number.isFinite(n) ? roundToDecimals(n, 2) : null;
     updateCurrentLossPctForWeight(editedCurrentWeight);
   };
 
@@ -421,7 +436,7 @@ function startCurrentWeightEdit() {
 
   const commit = () => {
     const n = toNumber(input.value);
-    editedCurrentWeight = Number.isFinite(n) ? n : null;
+    editedCurrentWeight = Number.isFinite(n) ? roundToDecimals(n, 2) : null;
     cleanupAndRender();
   };
 

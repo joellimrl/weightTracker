@@ -20,9 +20,15 @@
   };
 
   function formatWeight(w) {
-    const rounded = Math.round(w * 10) / 10;
-    const asInt = Math.round(rounded);
-    return Math.abs(rounded - asInt) < 1e-9 ? String(asInt) : rounded.toFixed(1);
+    if (!Number.isFinite(w)) {
+      return '';
+    }
+    const decimals = 2;
+    const factor = 10 ** decimals;
+    const rounded = Math.round(w * factor) / factor;
+    // Render with up to 2 decimals (trim trailing zeros).
+    const fixed = rounded.toFixed(decimals);
+    return fixed.replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
   }
 
   function formatXAxisTimestamp(point, includeTime) {
