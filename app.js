@@ -7,6 +7,8 @@ let myLossPct = null;
 let latestPoint = null;
 let editedCurrentWeight = null;
 let isEditingCurrentWeight = false;
+let allPoints = [];
+let timeFilter = { morning: true, afternoon: true, evening: true };
 
 function $(id) {
   return document.getElementById(id);
@@ -271,6 +273,9 @@ function extractPointsFromCsv(csvText) {
   let weightIdx = header.findIndex(
     (h) => h === 'weight' || h.includes('weight') || h.includes('lbs') || h.includes('lb') || h.includes('kg')
   );
+  let remarksIdx = header.findIndex(
+    (h) => h === 'remarks' || h === 'remark' || h.includes('remarks') || h.includes('remark') || h === 'note' || h.includes('notes')
+  );
 
   const startRow = dateIdx >= 0 || weightIdx >= 0 ? 1 : 0;
   if (dateIdx < 0) {
@@ -288,7 +293,8 @@ function extractPointsFromCsv(csvText) {
     if (!ts || weight === null) {
       continue;
     }
-    points.push({ t: ts.ms, date: ts.isoText, isoDate: ts.isoDate, hasTime: ts.hasTime, weight });
+    const remark = remarksIdx >= 0 ? String(r[remarksIdx] ?? '').trim() : '';
+    points.push({ t: ts.ms, date: ts.isoText, isoDate: ts.isoDate, hasTime: ts.hasTime, weight, remark });
   }
 
   points.sort((a, b) => a.t - b.t);
@@ -573,13 +579,34 @@ function updateUserComparison() {
   }
 }
 
+function filterPointsByTime(points) {
+  if (timeFilter.morning && timeFilter.afternoon && timeFilter.evening) {
+    return points;
+  }
+  return points.filter((p) => {
+    if (!p.hasTime) {
+      return true;
+    }
+    const h = new Date(p.t).getHours();
+    if (timeFilter.morning && h >= 0 && h < 12) return true;
+    if (timeFilter.afternoon && h >= 12 && h < 18) return true;
+    if (timeFilter.evening && h >= 18 && h < 24) return true;
+    return false;
+  });
+}
+
 function renderChart(points) {
   const api = window.WTChart;
   if (!api?.renderChart) {
     return;
   }
+  const filtered = filterPointsByTime(points);
+  if (!filtered.length) {
+    api.clearChart({ svg: $('chart'), grid: $('grid'), line: $('line'), area: $('area') });
+    return;
+  }
   api.renderChart({
-    points,
+    points: filtered,
     svg: $('chart'),
     grid: $('grid'),
     line: $('line'),
@@ -639,7 +666,24 @@ function render(points) {
       // ignore
     }
 
+    allPoints = points;
     render(points);
+
+    // Wire up time-of-day filter buttons.
+    document.querySelectorAll('.timeFilterBtn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const period = btn.dataset.period;
+        if (!period) return;
+        const willDeactivate = timeFilter[period];
+        // Prevent deselecting the last active filter.
+        const activeCount = [timeFilter.morning, timeFilter.afternoon, timeFilter.evening].filter(Boolean).length;
+        if (willDeactivate && activeCount <= 1) return;
+        timeFilter[period] = !timeFilter[period];
+        btn.classList.toggle('active', timeFilter[period]);
+        btn.setAttribute('aria-pressed', String(timeFilter[period]));
+        renderChart(allPoints);
+      });
+    });
 
     // Re-render axis labels on resize so we can skip labels when crowded.
     const svg = $('chart');
@@ -651,12 +695,12 @@ function render(points) {
         }
         raf = requestAnimationFrame(() => {
           raf = 0;
-          renderChart(points);
+          renderChart(allPoints);
         });
       });
       ro.observe(svg);
     } else {
-      window.addEventListener('resize', () => renderChart(points));
+      window.addEventListener('resize', () => renderChart(allPoints));
     }
 
     const currentWeightEl = $('currentWeight');

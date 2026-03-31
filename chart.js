@@ -321,7 +321,10 @@
     dot.setAttribute('cy', String(y));
 
     const dateLabel = st.includeTime ? p.date : p.isoDate || p.date;
-    const label = `${dateLabel}  •  ${formatWeight(p.weight)} ${st.unit}`;
+    let label = `${dateLabel}  •  ${formatWeight(p.weight)} ${st.unit}`;
+    if (p.remark) {
+      label += `  •  ${p.remark}`;
+    }
 
     // Measure text to size the bubble.
     text.textContent = label;
@@ -455,6 +458,102 @@
     });
   }
 
+  function computeRemarkSpans(points) {
+    const spans = [];
+    let i = 0;
+    while (i < points.length) {
+      const remark = points[i].remark;
+      if (!remark) {
+        i++;
+        continue;
+      }
+      const start = i;
+      while (i < points.length && points[i].remark === remark) {
+        i++;
+      }
+      // Only create a span if it covers 2+ adjacent points
+      if (i - start >= 2) {
+        spans.push({ remark, startIdx: start, endIdx: i - 1 });
+      }
+    }
+    return spans;
+  }
+
+  function renderRemarkSpans(svg, spans, xs, inset) {
+    // Remove previous remark elements
+    svg.querySelectorAll('[data-wt-remark]').forEach((el) => el.remove());
+
+    if (!spans.length) {
+      return;
+    }
+
+    const plotTop = inset.top;
+    const plotBottom = 320 - inset.bottom;
+
+    // Insert before the area/line paths so they render behind them
+    const areaEl = svg.querySelector('.area');
+
+    for (const span of spans) {
+      const x1 = xs[span.startIdx];
+      const x2 = xs[span.endIdx];
+      const cx = (x1 + x2) / 2;
+
+      // Highlighted column rect
+      const rect = document.createElementNS(SVG_NS, 'rect');
+      rect.setAttribute('data-wt-remark', '1');
+      rect.setAttribute('class', 'wtRemarkColumn');
+      rect.setAttribute('x', String(x1));
+      rect.setAttribute('y', String(plotTop));
+      rect.setAttribute('width', String(Math.max(1, x2 - x1)));
+      rect.setAttribute('height', String(plotBottom - plotTop));
+      if (areaEl) {
+        svg.insertBefore(rect, areaEl);
+      } else {
+        svg.appendChild(rect);
+      }
+
+      // Label group at top centre of the column
+      const g = document.createElementNS(SVG_NS, 'g');
+      g.setAttribute('data-wt-remark', '1');
+      g.setAttribute('class', 'wtRemarkLabel');
+
+      const text = document.createElementNS(SVG_NS, 'text');
+      text.setAttribute('x', String(cx));
+      text.setAttribute('y', String(plotTop + 6));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'hanging');
+      text.setAttribute('class', 'wtRemarkText');
+      text.textContent = span.remark;
+
+      const bg = document.createElementNS(SVG_NS, 'rect');
+      bg.setAttribute('class', 'wtRemarkBg');
+      bg.setAttribute('rx', '4');
+      bg.setAttribute('ry', '4');
+
+      g.appendChild(bg);
+      g.appendChild(text);
+      svg.appendChild(g);
+
+      // Size the background to fit the text
+      let bbox;
+      try {
+        bbox = text.getBBox();
+      } catch (_e) {
+        bbox = null;
+      }
+      const padX = 6;
+      const padY = 3;
+      const tw = bbox && bbox.width > 0 ? bbox.width : span.remark.length * 7;
+      const th = bbox && bbox.height > 0 ? bbox.height : 12;
+      const bx = bbox ? bbox.x : cx - tw / 2;
+      const by = bbox ? bbox.y : plotTop + 6;
+      bg.setAttribute('x', String(bx - padX));
+      bg.setAttribute('y', String(by - padY));
+      bg.setAttribute('width', String(tw + padX * 2));
+      bg.setAttribute('height', String(th + padY * 2));
+    }
+  }
+
   function renderChart(params) {
     const points = Array.isArray(params?.points) ? params.points : [];
     const svg = params?.svg;
@@ -521,6 +620,9 @@
       referenceY: originalWeight
     });
 
+    const remarkSpans = computeRemarkSpans(points);
+    renderRemarkSpans(svg, remarkSpans, built.xs, built.inset);
+
     const tooltip = getOrCreateTooltip(svg);
 
     stateBySvg.set(svg, {
@@ -565,6 +667,7 @@
 
     if (svg) {
       hideTooltip(svg);
+      svg.querySelectorAll('[data-wt-remark]').forEach((el) => el.remove());
       stateBySvg.delete(svg);
     }
   }

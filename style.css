@@ -253,6 +253,25 @@ body {
   font-size: 12px;
 }
 
+.wtRemarkColumn {
+  fill: rgba(134, 168, 255, 0.05);
+  stroke: rgba(134, 168, 255, 0.12);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.wtRemarkBg {
+  fill: var(--bg);
+  fill-opacity: 0.82;
+  stroke: rgba(134, 168, 255, 0.35);
+  stroke-width: 1;
+}
+
+.wtRemarkText {
+  fill: var(--accent);
+  font-size: 10px;
+}
+
 .error {
   margin-top: 12px;
   padding: 10px 12px;
@@ -261,6 +280,36 @@ body {
   background: var(--danger-bg);
   color: var(--danger-text);
   font-size: 13px;
+}
+
+.timeFilterBar {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.timeFilterBtn {
+  flex: 1;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.timeFilterBtn:hover {
+  border-color: rgba(134, 168, 255, 0.35);
+}
+
+.timeFilterBtn.active {
+  background: rgba(134, 168, 255, 0.18);
+  border-color: rgba(134, 168, 255, 0.45);
+  color: var(--text);
 }
 
 @media (max-width: 520px) {
